@@ -93,7 +93,7 @@ variable "build_environment_registry_credential" {
 
 
 locals{
-  environment = [
+  build_environment = [
     {
       compute_type                = lookup(var.build_environment, "compute_type", null) == null ? var.build_environment_compute_type : lookup(var.build_environment, "compute_type")
       image                       = lookup(var.build_environment, "image", null) == null ? var.build_environment_image : lookup(var.build_environment, "image")
