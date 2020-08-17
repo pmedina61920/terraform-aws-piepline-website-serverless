@@ -1,10 +1,6 @@
-######################
-#Full CodePipeline
-###################### 
-
+# Full CodePipeline
 resource "aws_codepipeline" "default" {
-  name = "${var.name}-Pipeline-${random_string.random_pipeline.result}"
-
+  name     = "${var.name}-Pipeline-${random_string.random_pipeline.result}"
   role_arn = "${aws_iam_role.codepipeline_role.arn}"
 
   artifact_store = {
@@ -74,10 +70,6 @@ resource "aws_codepipeline" "default" {
   ))}"
 }
 
-######################
-#CodeBuild
-###################### 
-
 resource "aws_codebuild_project" "codebuild" {
   name          = "${var.name}-Build-${random_string.random_pipeline.result}"
   description   = ""
@@ -88,45 +80,27 @@ resource "aws_codebuild_project" "codebuild" {
     type = "CODEPIPELINE"
   }
 
+  environment {
+    compute_type    = "BUILD_GENERAL1_SMALL"
+    image           = "aws/codebuild/amazonlinux2-x86_64-standard:3.0"
+    type            = "LINUX_CONTAINER"
+    privileged_mode = "false"
 
-  #Environment
-  dynamic "environment" {
-    for_each = local.build_environment
-    content {
-      compute_type                = lookup(environment.value, "compute_type")
-      image                       = lookup(environment.value, "image")
-      type                        = lookup(environment.value, "type")
-      image_pull_credentials_type = lookup(environment.value, "image_pull_credentials_type")
-      privileged_mode             = lookup(environment.value, "privileged_mode")
-      certificate                 = lookup(environment.value, "certificate")
+    environment_variable {
+      name  = "HOSTING_S3_BUCKET_NAME"
+      value = "${var.s3_bucket_hosting_name}"
+    }
 
-      # Registry Credential
-      dynamic "registry_credential" {
-        for_each = length(lookup(environment.value, "registry_credential")) == 0 ? [] : [lookup(environment.value, "registry_credential")]
-        content {
-          credential          = registry_credential.value.credential
-          credential_provider = registry_credential.value.credential_provider
-        }
-      }
+    environment_variable {
+      name  = "ENVIRONMENT"
+      value = "${var.environment}"
+    }
 
-      # Environment variables
-      dynamic "environment_variable" {
-        for_each = length(lookup(environment.value, "variables")) == 0 ? [] : lookup(environment.value, "variables")
-        content {
-          name  = environment_variable.value.name
-          value = environment_variable.value.value
-        }
-      }
+    environment_variable {
+      name  = "ARTIFACT_S3_BUCKET_NAME"
+      value = "${aws_s3_bucket.artifact_bucket.id}"
     }
   }
-
- dynamic "environment_variable" {
-        for_each = length(lookup(environment.value, "variables")) == 0 ? [] : lookup(environment.value, "variables")
-        content {
-          name  = environment_variable.value.name
-          value = environment_variable.value.value
-        }
- }
 
   source {
     type      = "CODEPIPELINE"
@@ -138,9 +112,8 @@ resource "aws_codebuild_project" "codebuild" {
   ))}"
 }
 
-######################
-#CodeBuild - IAM
-######################
+############################################33
+#CodeBuild
 resource "aws_iam_role" "codebuild_role" {
   name = "${var.name}-CodeBuild-Role-${random_string.random_pipeline.result}"
 
@@ -183,13 +156,13 @@ resource "aws_iam_role" "codepipeline_role" {
 EOF
 
   tags = "${merge(var.tags, map(
-    "Name", "${var.name}-CodePipeline-Role-${random_string.random_pipeline.result}"
+    "Name", "${var.name}-CodeBuild-Role-${random_string.random_pipeline.result}"
   ))}"
 }
 
-#####################
+##########################################
 #Permissions
-#####################
+
 resource "aws_iam_role_policy_attachment" "policy_attachment_pipeline_deploy" {
   role       = "${aws_iam_role.codepipeline_role.name}"
   policy_arn = "${aws_iam_policy.deploy_policy.arn}"
@@ -254,25 +227,23 @@ resource "aws_iam_policy" "pipeline_policy" {
             "Sid": "VisualEditor0",
             "Effect": "Allow",
             "Action": [
-                
+                "codestar-connections:*",
                 "codebuild:StartBuild",
                 "logs:CreateLogStream",
                 "logs:CreateLogGroup",
                 "logs:PutLogEvents",
                 "codebuild:BatchGetBuilds",
                 "cloudwatch:*"
+                
+               
             ],
             "Resource": "*"
         },
+        
          {
             "Effect": "Allow",
             "Action": "s3:GetObject",
             "Resource": "${aws_s3_bucket.artifact_bucket.arn}/*"
-        },{
-            "Effect": "Allow",
-            "Action": ["codestar-connections:UseConnection",
-                "codestar-connections:GetConnection"],
-            "Resource": "${var.connection_arn}"
         }
     ]
 }
